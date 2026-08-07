@@ -86,6 +86,7 @@ type outboundCall struct {
 	mon      *stats.CallMonitor
 	lkRoom   RoomInterface
 	lkRoomIn msdk.PCM16Writer // output to room; OPUS at 48k
+	smartflo *smartfloWSBridge
 	sipConf  sipOutboundConfig
 }
 
@@ -380,6 +381,9 @@ func (c *outboundCall) close(ctx context.Context, end EndCall) bool {
 		// attributes_to_headers mapping in the setHeaders callback.
 		// See: https://github.com/livekit/sip/issues/404
 		c.stopSIP(ctx, end.Term, end.Headers)
+		if c.smartflo != nil {
+			_ = c.smartflo.Close()
+		}
 		if c.media != nil {
 			c.media.Close()
 		}
@@ -749,6 +753,13 @@ func (c *outboundCall) sipSignal(ctx context.Context, tid traceid.ID) error {
 		return err
 	}
 	mc.Processor = c.c.handler.GetMediaProcessor(c.sipConf.enabledFeatures, c.sipConf.featureFlags, string(c.cc.ID()), MediaProcessorOpts{InputSampleRate: c.media.InputSampleRate()})
+	smartfloBridge, sfErr := newSmartfloWSBridge(ctx, c.log, string(c.cc.ID()), c.media.InputSampleRate(), c.media.GetAudioWriter(), c.c.conf.SmartfloWS, c.sipConf.featureFlags)
+	if sfErr != nil {
+		c.log.Warnw("smartflo websocket bridge disabled", sfErr, "callID", c.cc.ID())
+	} else if smartfloBridge != nil {
+		c.smartflo = smartfloBridge
+		mc.Processor = withSmartfloProcessor(mc.Processor, smartfloBridge)
+	}
 	c.cc.SetLocalSDP(localSDP)
 
 	c.mon.InviteAccept()

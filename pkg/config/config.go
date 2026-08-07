@@ -80,6 +80,20 @@ type TCPConfig struct {
 	DialPort rtcconfig.PortRange `yaml:"dial_port"`
 }
 
+type SmartfloWSConfig struct {
+	Enabled          bool              `yaml:"enabled"`
+	URLTemplate      string            `yaml:"url_template"`
+	AuthToken        string            `yaml:"auth_token"`
+	AuthHeader       string            `yaml:"auth_header"`
+	Headers          map[string]string `yaml:"headers"`
+	HandshakeTimeout time.Duration     `yaml:"handshake_timeout"`
+	WriteTimeout     time.Duration     `yaml:"write_timeout"`
+	ReadTimeout      time.Duration     `yaml:"read_timeout"`
+	PingInterval     time.Duration     `yaml:"ping_interval"`
+	Codec            string            `yaml:"codec"`
+	MaxQueue         int               `yaml:"max_queue"`
+}
+
 type Config struct {
 	Redis     *redis.RedisConfig `yaml:"redis"`      // required
 	ApiKey    string             `yaml:"api_key"`    // required (env LIVEKIT_API_KEY)
@@ -113,16 +127,16 @@ type Config struct {
 	MediaUseExternalIP bool   `yaml:"media_use_external_ip"`
 	MediaNAT1To1IP     string `yaml:"media_nat_1_to_1_ip"`
 
-	MediaTimeout         time.Duration   `yaml:"media_timeout"`
-	MediaTimeoutInitial  time.Duration   `yaml:"media_timeout_initial"`
-	SymmetricRTP         bool            `yaml:"symmetric_rtp"`
+	MediaTimeout        time.Duration `yaml:"media_timeout"`
+	MediaTimeoutInitial time.Duration `yaml:"media_timeout_initial"`
+	SymmetricRTP        bool          `yaml:"symmetric_rtp"`
 	// RTPDrainingIdleTimeout / RTPDrainingDuration control how long a closed call's RTP
 	// port is kept bound and draining before it can be reallocated. Set to a negative
 	// value to disable. Zero uses the defaults.
-	RTPDrainingIdleTimeout time.Duration `yaml:"rtp_draining_idle_timeout"`
-	RTPDrainingDuration    time.Duration `yaml:"rtp_draining_duration"`
-	IgnoreLocalAddrInSDP bool            `yaml:"ignore_local_addr_in_sdp"` // enable symmetric RTP if local IP is specified in SDP
-	Codecs               map[string]bool `yaml:"codecs"`
+	RTPDrainingIdleTimeout time.Duration   `yaml:"rtp_draining_idle_timeout"`
+	RTPDrainingDuration    time.Duration   `yaml:"rtp_draining_duration"`
+	IgnoreLocalAddrInSDP   bool            `yaml:"ignore_local_addr_in_sdp"` // enable symmetric RTP if local IP is specified in SDP
+	Codecs                 map[string]bool `yaml:"codecs"`
 
 	// HideInboundPort controls how SIP endpoint responds to unverified inbound requests.
 	// Setting it to true makes SIP server silently drop INVITE requests if it gets a negative Auth or Dispatch response.
@@ -150,6 +164,8 @@ type Config struct {
 		// InboundWaitACK forces SIP to wait for an ACK to 200 OK before proceeding with the call.
 		InboundWaitACK bool `yaml:"inbound_wait_ack"`
 	} `yaml:"experimental"`
+
+	SmartfloWS *SmartfloWSConfig `yaml:"smartflo_ws"`
 }
 
 func NewConfig(confString string) (*Config, error) {
@@ -207,6 +223,27 @@ func (c *Config) Init() error {
 	}
 	if c.MaxCpuUtilization <= 0 || c.MaxCpuUtilization > 1 {
 		c.MaxCpuUtilization = 0.9
+	}
+	if c.SmartfloWS != nil {
+		ws := c.SmartfloWS
+		if ws.AuthHeader == "" {
+			ws.AuthHeader = "Authorization"
+		}
+		if ws.HandshakeTimeout <= 0 {
+			ws.HandshakeTimeout = 10 * time.Second
+		}
+		if ws.WriteTimeout <= 0 {
+			ws.WriteTimeout = 2 * time.Second
+		}
+		if ws.ReadTimeout <= 0 {
+			ws.ReadTimeout = 30 * time.Second
+		}
+		if ws.PingInterval <= 0 {
+			ws.PingInterval = 10 * time.Second
+		}
+		if ws.MaxQueue <= 0 {
+			ws.MaxQueue = 32
+		}
 	}
 
 	if err := c.InitLogger(); err != nil {
