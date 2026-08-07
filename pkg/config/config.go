@@ -80,6 +80,20 @@ type TCPConfig struct {
 	DialPort rtcconfig.PortRange `yaml:"dial_port"`
 }
 
+type SmartfloWSConfig struct {
+	Enabled          bool              `yaml:"enabled"`
+	URLTemplate      string            `yaml:"url_template"`
+	AuthToken        string            `yaml:"auth_token"`
+	AuthHeader       string            `yaml:"auth_header"`
+	Headers          map[string]string `yaml:"headers"`
+	HandshakeTimeout time.Duration     `yaml:"handshake_timeout"`
+	WriteTimeout     time.Duration     `yaml:"write_timeout"`
+	ReadTimeout      time.Duration     `yaml:"read_timeout"`
+	PingInterval     time.Duration     `yaml:"ping_interval"`
+	Codec            string            `yaml:"codec"`
+	MaxQueue         int               `yaml:"max_queue"`
+}
+
 type Config struct {
 	Redis     *redis.RedisConfig `yaml:"redis"`      // required
 	ApiKey    string             `yaml:"api_key"`    // required (env LIVEKIT_API_KEY)
@@ -150,6 +164,8 @@ type Config struct {
 		// InboundWaitACK forces SIP to wait for an ACK to 200 OK before proceeding with the call.
 		InboundWaitACK bool `yaml:"inbound_wait_ack"`
 	} `yaml:"experimental"`
+
+	SmartfloWS *SmartfloWSConfig `yaml:"smartflo_ws"`
 }
 
 func NewConfig(confString string) (*Config, error) {
@@ -207,6 +223,27 @@ func (c *Config) Init() error {
 	}
 	if c.MaxCpuUtilization <= 0 || c.MaxCpuUtilization > 1 {
 		c.MaxCpuUtilization = 0.9
+	}
+	if c.SmartfloWS != nil {
+		ws := c.SmartfloWS
+		if ws.AuthHeader == "" {
+			ws.AuthHeader = "Authorization"
+		}
+		if ws.HandshakeTimeout <= 0 {
+			ws.HandshakeTimeout = 10 * time.Second
+		}
+		if ws.WriteTimeout <= 0 {
+			ws.WriteTimeout = 2 * time.Second
+		}
+		if ws.ReadTimeout <= 0 {
+			ws.ReadTimeout = 30 * time.Second
+		}
+		if ws.PingInterval <= 0 {
+			ws.PingInterval = 10 * time.Second
+		}
+		if ws.MaxQueue <= 0 {
+			ws.MaxQueue = 32
+		}
 	}
 
 	if err := c.InitLogger(); err != nil {

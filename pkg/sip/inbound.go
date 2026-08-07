@@ -712,6 +712,7 @@ type inboundCall struct {
 	dtmf        chan dtmf.Event // buffered
 	endCall     chan EndCall    // buffered
 	lkRoom      RoomInterface   // LiveKit room; only active after correct pin is entered
+	smartflo    *smartfloWSBridge
 	callDur     func() time.Duration
 	joinDur     func() time.Duration
 	forwardDTMF atomic.Bool
@@ -1151,6 +1152,13 @@ func (c *inboundCall) runMediaConn(tid traceid.ID, offerData []byte, mconf *sipM
 		return nil, err
 	}
 	mc.Processor = c.s.handler.GetMediaProcessor(features, featureFlags, string(c.cc.ID()), MediaProcessorOpts{InputSampleRate: c.media.InputSampleRate()})
+	smartfloBridge, sfErr := newSmartfloWSBridge(c.ctx, c.log(), string(c.cc.ID()), c.media.InputSampleRate(), c.media.GetAudioWriter(), conf.SmartfloWS, featureFlags)
+	if sfErr != nil {
+		c.log().Warnw("smartflo websocket bridge disabled", sfErr, "callID", c.cc.ID())
+	} else if smartfloBridge != nil {
+		c.smartflo = smartfloBridge
+		mc.Processor = withSmartfloProcessor(mc.Processor, smartfloBridge)
+	}
 	if mc.Audio.DTMFType != 0 {
 		mp.HandleDTMF(c.handleDTMF)
 	}
@@ -1511,6 +1519,10 @@ func (c *inboundCall) closeMedia() {
 	c.lkRoom.Close()
 	c.mmu.Lock()
 	defer c.mmu.Unlock()
+	if c.smartflo != nil {
+		_ = c.smartflo.Close()
+		c.smartflo = nil
+	}
 	if c.media != nil {
 		c.media.Close()
 	}
