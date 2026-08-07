@@ -40,6 +40,7 @@ type smartfloWSBridge struct {
 	recvWriter      msdk.PCM16Writer
 
 	closeOnce sync.Once
+	doneOnce  sync.Once
 	closed    chan struct{}
 	wg        sync.WaitGroup
 	writeMu   sync.Mutex
@@ -131,16 +132,18 @@ func (b *smartfloWSBridge) closeWithReason(reason string) {
 		_ = b.conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, reason), time.Now().Add(time.Second))
 		b.writeMu.Unlock()
 		_ = b.conn.Close()
+	})
+}
+
+func (b *smartfloWSBridge) Close() error {
+	b.closeWithReason("call closed")
+	b.doneOnce.Do(func() {
 		b.wg.Wait()
 		if b.recvWriter != nil {
 			_ = b.recvWriter.Close()
 		}
 		b.log.Infow("smartflo websocket closed", "callID", b.callID, "txFrames", b.txFrames.Load(), "rxFrames", b.rxFrames.Load(), "droppedFrames", b.dropped.Load(), "errors", b.errors.Load())
 	})
-}
-
-func (b *smartfloWSBridge) Close() error {
-	b.closeWithReason("call closed")
 	return nil
 }
 
