@@ -70,7 +70,7 @@ require (
 	github.com/google/cel-go v0.28.1 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 // indirect
+	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/gotranspile/g722 v0.0.0-20240123003956-384a1bb16a19 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
 	github.com/jfreymuth/vorbis v1.0.2 // indirect
